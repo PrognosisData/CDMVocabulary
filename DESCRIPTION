@@ -1,0 +1,29 @@
+Package: CDMVocabulary
+Type: Package
+Title: CDM Vocabulary
+Version: 0.1.0
+Author: Chris Uhrich [aut, cre]
+Maintainer: Clair Blacketer <mblacke@its.jnj.com>
+Description: R package to handle loading/updating OMOP CDM vocabulary tables
+License: Apache License 2.0
+Encoding: UTF-8
+LazyData: true
+VignetteBuilder: knitr
+Imports:
+  SqlRender,
+  rmarkdown,
+  stringr,
+  readxl,
+  DatabaseConnector,
+  DBI,
+  dplyr,
+  readr,
+  CommonDataModel
+Suggests:
+    knitr,
+    testthat (>= 3.0.0),
+    RSQLite,
+    withr
+NeedsCompilation: no
+RoxygenNote: 7.1.2
+Config/testthat/edition: 3
