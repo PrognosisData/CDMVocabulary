@@ -1,3 +1,5 @@
+# @file loadVocabulary.R
+#
 # Copyright 2019 Observational Health Data Sciences and Informatics
 # Portions Copyright 2021 Prognosis Data Corp
 #
@@ -15,12 +17,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#' Generate and execute the DDL on a database
-#'
-#' This function will generate the DDL for a specific dbms and CDM version and
-#' then execute the DDL on a database.
-#'
-#' @description createCDMTables Creates CDM tables
+#' @title Creates OMOP CDM tables in database.
+#' @description Creates OMOP CDM tables in database
 #' @param connectionDetails An object of class connectionDetails as created by the DatabaseConnector::createConnectionDetails function.
 #' @param cdmVersion The version of the CDM you are creating, e.g. 5.3, 5.4
 #' @param cdmDatabaseSchema The schema of the CDM instance where the DDL will be run. For example, this would be "ohdsi.dbo" when testing on sql server.
@@ -48,7 +46,8 @@ createCDMTables <- function(connectionDetails,
 
 }
 
-#' @describeIn loadVocabulary dropConstraints Drops table constraints
+#' @title Drops OMOP CDM constraints
+#' @description Drops OMOP CDM constraints (foreign keys, primary keys, and indexes)
 #' @export
 dropConstraints <- function(connectionDetails,
                             cdmVersion,
@@ -82,7 +81,8 @@ dropConstraints <- function(connectionDetails,
   DatabaseConnector::disconnect(con)
 }
 
-#' @describeIn loadVocabulary truncateVocabTables Truncates vocabulary tables
+#' @title Truncates OMOP CDM vocabulary tables
+#' @describeIn Truncates OMOP CDM vocabulary tables
 #' @export
 truncateVocabTables <- function(connectionDetails,
                                 cdmVersion,
@@ -105,14 +105,8 @@ truncateVocabTables <- function(connectionDetails,
   DatabaseConnector::disconnect(con)
 }
 
-#' Function from ETL-Synthea project
-#'
-#' @description loadVocabTables This function populates all Vocabulary tables with data in csv files.
-#'
-#' @usage LoadVocabFromCsv(connectionDetails, cdmSchema, vocabFileLoc, bulkLoad)
-#'
-#' @details This function assumes \cr\code{createCDMTables()} has already been run.
-#'
+#' @title Loads the OMOP CDM vocabulary tables from csv files
+#' @description Loads the OMOP CDM vocabulary tables from csv files
 #' @param connectionDetails  An R object of type\cr\code{connectionDetails} created using the
 #'                                     function \code{createConnectionDetails} in the
 #'                                     \code{DatabaseConnector} package.
@@ -157,8 +151,6 @@ loadVocabTables <- function (connectionDetails, cdmSchema, vocabFileLoc, bulkLoa
   on.exit(DatabaseConnector::disconnect(conn))
 }
 
-
-#' @description insertVocabData Callback to insert chuck of csv data into database table
 insertVocabData <- function(conn, tableName) {
   function(vocabData, pos) {
     vocabTable <- as.data.frame(vocabData)
@@ -216,7 +208,19 @@ getColumnTypes <- function(cdmVersion, tableName) {
 
 }
 
-#' @description loadVocabTables2 Function to load vocabulary csv files into database tables.
+
+#' @title Loads the OMOP CDM vocabulary tables from csv files
+#' @description Loads the OMOP CDM vocabulary tables from csv files
+#' @param connectionDetails  An R object of type\cr\code{connectionDetails} created using the
+#'                                     function \code{createConnectionDetails} in the
+#'                                     \code{DatabaseConnector} package.
+#' @param cdmVersion The version of the CDM you are creating, e.g. 5.3, 5.4
+#' @param cdmSchema  The name of the database schema that will contain the Vocabulary (and CDM)
+#'                                     tables.  Requires read and write permissions to this database. On SQL
+#'                                     Server, this should specifiy both the database and the schema,
+#'                                     so for example 'cdm_instance.dbo'.
+#' @param vocabFileLoc The location of the vocabulary csv files.
+#' @param chuckSize Number of records in each chunck of data that is processed.  Default is 10000
 #' @export
 loadVocabTables2 <- function(connectionDetails, cdmVersion, cdmSchema, vocabFileLoc, chunkSize = 10000)
 {
@@ -245,7 +249,8 @@ loadVocabTables2 <- function(connectionDetails, cdmVersion, cdmSchema, vocabFile
 }
 
 
-#' @describeIn loadVocabulary reapplyConstraints Reapplies table constraints.
+#' @title Reapplies constraints on OMOP CDM vocabulary tables.
+#' @describeIn Reapplies constraints on OMOP CDM vocabulary tables.
 #' @export
 reapplyConstraints <- function(connectionDetails,
                             cdmVersion,
