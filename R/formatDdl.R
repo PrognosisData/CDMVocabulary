@@ -33,21 +33,51 @@
 #'
 formatCreateTables <- function(cdmVersion) {
   # Use existing function from CommonDataModel package
-  return(CommonDataModel::createDdl(cdmVersion))
+  sql_result <- CommonDataModel::createDdl(cdmVersion)
+
+  # Fix bug in CommonDataModel v5.4
+  if (cdmVersion == "5.4") {
+    sql_result <- gsub("person_id bigint NOT NULL",
+                       "person_id integer NOT NULL",
+                       sql_result,
+                       fixed = TRUE)
+  }
+
+  return(paste0(sql_result, collapse = ""))
 }
 
 #' @describeIn formatDdl v Returns a string containing the OHDSQL for creation of primary keys in the OMOP CDM.
 #' @export
 formatCreatePrimaryKeys <- function(cdmVersion) {
   # Use existing function from CommonDataModel package
-  return(CommonDataModel::createPrimaryKeys(cdmVersion))
+  sql_result = CommonDataModel::createPrimaryKeys(cdmVersion)
+
+  # append pk fo cohort_definition to fix bug in CommonDataModel code for v5.4
+  if (cdmVersion == "5.4") {
+    sql_result <- paste0(sql_result, "\nALTER TABLE @cdmDatabaseSchema.COHORT_DEFINITION ADD CONSTRAINT xpk_COHORT_DEFINITION PRIMARY KEY NONCLUSTERED (cohort_definition_id);\n")
+  }
+
+  return(paste0(sql_result, collapse = ""))
 }
+
+
 
 #' @describeIn formatDdl formatCreateForeignKeys Returns a string containing the OHDSQL for creation of foreign keys in the OMOP CDM.
 #' @export
 formatCreateForeignKeys <- function(cdmVersion) {
   # Use existing function from CommonDataModel package
-  return(CommonDataModel::createForeignKeys(cdmVersion))
+  sql_result <- CommonDataModel::createForeignKeys(cdmVersion)
+
+  # Fix bug in CommonDataModel v5.4
+  if (cdmVersion == "5.4") {
+    message("5.4")
+    sql_result <- gsub("ALTER TABLE @cdmDatabaseSchema.COHORT_DEFINITION ADD CONSTRAINT fpk_COHORT_DEFINITION_cohort_definition_id FOREIGN KEY (cohort_definition_id) REFERENCES @cdmDatabaseSchema.COHORT (COHORT_DEFINITION_ID)",
+                       "ALTER TABLE @cdmDatabaseSchema.COHORT ADD CONSTRAINT fpk_COHORT_cohort_definition_id FOREIGN KEY (cohort_definition_id) REFERENCES @cdmDatabaseSchema.COHORT_DEFINITION (COHORT_DEFINITION_ID)",
+                       sql_result,
+                       fixed = TRUE)
+  }
+
+  return(paste0(sql_result, collapse = ""))
 }
 
 #' @describeIn formatDdl formatCreateIndexes Returns a string containing the OHDSQL for creation of indexes in the OMOP CDM.
@@ -74,6 +104,7 @@ formatCreateIndexes <- function(cdmVersion) {
     sql_result <- c(sql_result, paste0("CREATE ", ifelse(cdmIndexRow$isClustered == "Yes", "CLUSTERED ", ""), "INDEX ", cdmIndexRow$indexName, " ON @cdmDatabaseSchema.", tolower(cdmIndexRow$cdmTableName), " (", cdmIndexRow$cdmFieldName, " ASC);\n"))
 
   }
+
   return(paste0(sql_result, collapse = ""))
 }
 
@@ -92,9 +123,9 @@ formatDropTables <- function(cdmVersion){
   tableList <- tableSpecs$cdmTableName
 
   sql_result <- c()
-  sql_result <- c(paste0("--@targetDialect CDM DDL Specification for OMOP Common Data Model ", cdmVersion))
+  sql_result <- c(paste0("--@targetDialect CDM DDL Specification for OMOP Common Data Model ", cdmVersion, "\n"))
   for (tableName in tableList){
-    sql_result <- c(sql_result, paste0("DROP TABLE IF EXISITS @cdmDatabaseSchema.", tableName, ";\n"))
+    sql_result <- c(sql_result, paste0("DROP TABLE IF EXISTS @cdmDatabaseSchema.", tableName, ";\n"))
   }
   return(paste0(sql_result, collapse = ""))
 }
@@ -121,6 +152,12 @@ formatDropPrimaryKeys <- function(cdmVersion){
     sql_result <- c(sql_result, paste0("\nALTER TABLE @cdmDatabaseSchema.", subquery$cdmTableName, " DROP CONSTRAINT IF EXISTS xpk_", subquery$cdmTableName, ";\n"))
 
   }
+
+  # append pk for cohort_definition to fix bug in CommonDataModel code for v5.4
+  if (cdmVersion == "5.4") {
+    sql_result <- paste0(sql_result, "\nALTER TABLE @cdmDatabaseSchema.COHORT_DEFINITION DROP CONSTRAINT IF EXISTS xpk_COHORT_DEFINITION;\n")
+  }
+
   return(paste0(sql_result, collapse = ""))
 }
 
@@ -143,9 +180,15 @@ formatDropForeignKeys <- function(cdmVersion){
 
     subquery <- subset(foreignKeys, foreignKeys$key==foreignKey)
 
+    # Fix bug in CommonDataModel v5.4
+    if (cdmVersion == "5.4" && foreignKey == "COHORT_DEFINITION_cohort_definition_id") {
+      subquery$cdmTableName <- "COHORT"
+    }
+
     sql_result <- c(sql_result, paste0("\nALTER TABLE @cdmDatabaseSchema.", subquery$cdmTableName, " DROP CONSTRAINT IF EXISTS fpk_", subquery$cdmTableName, "_", subquery$cdmFieldName, ";\n"))
 
   }
+
   return(paste0(sql_result, collapse = ""))
 }
 

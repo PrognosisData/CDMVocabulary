@@ -21,7 +21,7 @@ so for example 'cdm_instance.dbo'.}
 \item{bulkLoad}{Boolean flag indicating whether or not to use bulk loading (if possible).  Default is FALSE.}
 }
 \description{
-This function populates all Vocabulary tables with data in csv files.
+loadVocabTables This function populates all Vocabulary tables with data in csv files.
 }
 \details{
 This function assumes \cr\code{createCDMTables()} has already been run.
