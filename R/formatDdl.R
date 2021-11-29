@@ -70,7 +70,6 @@ formatCreateForeignKeys <- function(cdmVersion) {
 
   # Fix bug in CommonDataModel v5.4
   if (cdmVersion == "5.4") {
-    message("5.4")
     sql_result <- gsub("ALTER TABLE @cdmDatabaseSchema.COHORT_DEFINITION ADD CONSTRAINT fpk_COHORT_DEFINITION_cohort_definition_id FOREIGN KEY (cohort_definition_id) REFERENCES @cdmDatabaseSchema.COHORT (COHORT_DEFINITION_ID)",
                        "ALTER TABLE @cdmDatabaseSchema.COHORT ADD CONSTRAINT fpk_COHORT_cohort_definition_id FOREIGN KEY (cohort_definition_id) REFERENCES @cdmDatabaseSchema.COHORT_DEFINITION (COHORT_DEFINITION_ID)",
                        sql_result,

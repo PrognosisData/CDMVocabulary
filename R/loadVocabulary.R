@@ -25,7 +25,7 @@
 #' @param ... Other arguments passed on to DatabaseConnector::executeSql. (This allows the user to set the path to errorReportFile.)
 #' @export
 #'
-createCDMTables <- function(connectionDetails,
+createTables <- function(connectionDetails,
                          cdmVersion,
                          cdmDatabaseSchema,
                          ...) {
@@ -45,6 +45,36 @@ createCDMTables <- function(connectionDetails,
   DatabaseConnector::disconnect(con)
 
 }
+
+#' @title Drops OMOP CDM tables foon database.
+#' @description Drop OMOP CDM tables from database
+#' @param connectionDetails An object of class connectionDetails as created by the DatabaseConnector::createConnectionDetails function.
+#' @param cdmVersion The version of the CDM you are creating, e.g. 5.3, 5.4
+#' @param cdmDatabaseSchema The schema of the CDM instance where the DDL will be run. For example, this would be "ohdsi.dbo" when testing on sql server.
+#' @param ... Other arguments passed on to DatabaseConnector::executeSql. (This allows the user to set the path to errorReportFile.)
+#' @export
+#'
+dropTables <- function(connectionDetails,
+                       cdmVersion,
+                       cdmDatabaseSchema,
+                       ...) {
+
+  outputfolder <- tempdir(check = TRUE)
+
+  filename <- outputDropTables(targetDialect = connectionDetails$dbms,
+                                cdmVersion = cdmVersion,
+                                cdmDatabaseSchema = cdmDatabaseSchema,
+                                outputfolder = outputfolder)
+  sql <- paste(readr::read_file(file.path(outputfolder, filename)), sep = "\n")
+
+  con <- DatabaseConnector::connect(connectionDetails = connectionDetails)
+
+  DatabaseConnector::executeSql(con, sql = sql, ...)
+
+  DatabaseConnector::disconnect(con)
+
+}
+
 
 #' @title Drops OMOP CDM constraints
 #' @description Drops OMOP CDM constraints (foreign keys, primary keys, and indexes)
@@ -105,77 +135,29 @@ truncateVocabTables <- function(connectionDetails,
   DatabaseConnector::disconnect(con)
 }
 
-#' @title Loads the OMOP CDM vocabulary tables from csv files
-#' @description Loads the OMOP CDM vocabulary tables from csv files
-#' @param connectionDetails  An R object of type\cr\code{connectionDetails} created using the
-#'                                     function \code{createConnectionDetails} in the
-#'                                     \code{DatabaseConnector} package.
-#' @param cdmSchema  The name of the database schema that will contain the Vocabulary (and CDM)
-#'                                     tables.  Requires read and write permissions to this database. On SQL
-#'                                     Server, this should specifiy both the database and the schema,
-#'                                     so for example 'cdm_instance.dbo'.
-#' @param vocabFileLoc     The location of the vocabulary csv files.
-#' @param bulkLoad       Boolean flag indicating whether or not to use bulk loading (if possible).  Default is FALSE.
-#' @export
-#'
-loadVocabTables <- function (connectionDetails, cdmSchema, vocabFileLoc, bulkLoad = FALSE)
-{
-
-  csvList <- c("concept.csv","vocabulary.csv","concept_ancestor.csv","concept_relationship.csv","relationship.csv","concept_synonym.csv","domain.csv","concept_class.csv", "drug_strength.csv")
-
-  fileList <- list.files(vocabFileLoc)
-
-  fileList <- fileList[which(tolower(fileList) %in% csvList)]
-
-  conn <- DatabaseConnector::connect(connectionDetails)
-
-  for (csv in fileList) {
-
-    vocabTable <- data.table::fread(file = paste0(vocabFileLoc, "/", csv), stringsAsFactors = FALSE, header = TRUE, sep = "\t", na.strings = "")
-    vocabTable <- as.data.frame(vocabTable)
-
-    # Format Dates for tables that need it
-    if (tolower(csv) == "concept.csv" || tolower(csv) == "concept_relationship.csv" || tolower(csv) == "drug_strength.csv") {
-
-      vocabTable$valid_start_date <- as.Date(as.character(vocabTable$valid_start_date),"%Y%m%d")
-      vocabTable$valid_end_date   <- as.Date(as.character(vocabTable$valid_end_date),"%Y%m%d")
-    }
-
-    writeLines(paste0("Loading: ",csv))
-
-    suppressWarnings({
-      DatabaseConnector::insertTable(conn,tableName=paste0(cdmSchema,".",strsplit(csv,"[.]")[[1]][1]), data=as.data.frame(vocabTable), dropTableIfExists = FALSE, createTable = FALSE, useMppBulkLoad = bulkLoad, progressBar = TRUE)
-    })
-  }
-
-  on.exit(DatabaseConnector::disconnect(conn))
-}
-
-insertVocabData <- function(conn, tableName) {
+# DataFrameCallback function that inserts vocabulary data into table.
+insertVocabData <- function(conn, cdmSchema, cdmTableName, bulkLoad) {
   function(vocabData, pos) {
     vocabTable <- as.data.frame(vocabData)
 
     # Format Dates for tables that need it
-    if (tolower(tableName) == "concept" || tolower(tableName) == "concept_relationship" || tolower(tableName) == "drug_strength") {
+    if (tolower(cdmTableName) == "concept" || tolower(cdmTableName) == "concept_relationship" || tolower(cdmTableName) == "drug_strength") {
       vocabTable$valid_start_date <- as.Date(as.character(vocabTable$valid_start_date),"%Y%m%d")
       vocabTable$valid_end_date   <- as.Date(as.character(vocabTable$valid_end_date),"%Y%m%d")
     }
 
-    # suppressWarnings({
-    #   DatabaseConnector::insertTable(conn, tableName=tableName, data=as.data.frame(vocabTable), dropTableIfExists = FALSE, createTable = FALSE, useMppBulkLoad = FALSE, progressBar = FALSE)
-    # })
-
-    tryCatch(DatabaseConnector::insertTable(conn, tableName=tableName, data=as.data.frame(vocabTable), dropTableIfExists = FALSE, createTable = FALSE, useMppBulkLoad = FALSE, progressBar = FALSE),
-             warning = function(w) { message(paste0(pos, ": ", w))},
-             error = function(e) { message(paste0(pos, ": ", e))})
+    suppressWarnings({
+      DatabaseConnector::insertTable(conn, tableName = paste0(cdmSchema, ".", cdmTableName), data=as.data.frame(vocabTable), dropTableIfExists = FALSE, createTable = FALSE, bulkLoad = bulkLoad, progressBar = FALSE)
+    })
   }
 }
 
-getColumnTypes <- function(cdmVersion, tableName) {
+# Gets column types for specified CDM version and table name.
+getColumnTypes <- function(cdmVersion, cdmTableName) {
 
   cdmFieldCsvLoc <- system.file(file.path("csv", paste0("OMOP_CDMv", cdmVersion, "_Field_Level.csv")), package = "CommonDataModel", mustWork = TRUE)
   cdmSpecs <- read.csv(cdmFieldCsvLoc, stringsAsFactors = FALSE)
-  fields <- subset(cdmSpecs, cdmTableName == tableName)
+  fields <- subset(cdmSpecs, cdmTableName == cdmTableName)
   fieldTypes <- fields$cdmDatatype
   fieldNames <- fields$cdmFieldName
 
@@ -222,7 +204,7 @@ getColumnTypes <- function(cdmVersion, tableName) {
 #' @param vocabFileLoc The location of the vocabulary csv files.
 #' @param chuckSize Number of records in each chunck of data that is processed.  Default is 10000
 #' @export
-loadVocabTables2 <- function(connectionDetails, cdmVersion, cdmSchema, vocabFileLoc, chunkSize = 10000)
+loadVocabTables <- function(connectionDetails, cdmVersion, cdmSchema, vocabFileLoc, bulkLoad = FALSE, chunkSize = 10000)
 {
 
   csvList <- c("concept.csv","vocabulary.csv","concept_ancestor.csv","concept_relationship.csv","relationship.csv","concept_synonym.csv","domain.csv","concept_class.csv", "drug_strength.csv")
@@ -234,15 +216,17 @@ loadVocabTables2 <- function(connectionDetails, cdmVersion, cdmSchema, vocabFile
 
   for (csv in fileList) {
     writeLines(paste0("Loading: ", csv))
-    tableName <- strsplit(csv,"[.]")[[1]][1]
-    columnTypes <- getColumnTypes(cdmVersion, tableName)
+    tic()
+    cdmTableName <- strsplit(csv,"[.]")[[1]][1]
+    columnTypes <- getColumnTypes(cdmVersion, cdmTableName)
 
     readr::read_tsv_chunked(paste0(vocabFileLoc, "/", csv),
-                            readr::DataFrameCallback$new(insertVocabData(conn, paste0(cdmSchema, ".", tableName))),
+                            readr::DataFrameCallback$new(insertVocabData(conn, cdmSchema, cdmTableName, bulkLoad)),
                             col_types = columnTypes,
+                            na = character(),
                             quote = "",
                             chunk_size = chunkSize)
-    break
+    toc()
   }
 
   on.exit(DatabaseConnector::disconnect(conn))
@@ -257,29 +241,38 @@ reapplyConstraints <- function(connectionDetails,
                             cdmDatabaseSchema,
                             ...) {
 
+  conn <- DatabaseConnector::connect(connectionDetails)
   outputfolder <- tempdir(check = TRUE)
 
+  message("Reapplying primary keys")
+  tic()
   filename <- outputCreatePrimaryKeys(targetDialect = connectionDetails$dbms,
                                 cdmVersion = cdmVersion,
                                 cdmDatabaseSchema = cdmDatabaseSchema,
                                 outputfolder = outputfolder)
-  sql <- paste(readr::read_file(file.path(outputfolder, filename)), sep = "\n")
+  sql <- readr::read_file(file.path(outputfolder, filename))
+  DatabaseConnector::executeSql(conn, sql = sql, ...)
+  toc()
 
+  message("Reapplying foreign keys")
+  tic()
   filename <- outputCreateForeignKeys(targetDialect = connectionDetails$dbms,
                                     cdmVersion = cdmVersion,
                                     cdmDatabaseSchema = cdmDatabaseSchema,
                                     outputfolder = outputfolder)
-  sql <- paste(sql, readr::read_file(file.path(outputfolder, filename)), sep = "\n")
+  sql <- readr::read_file(file.path(outputfolder, filename))
+  DatabaseConnector::executeSql(conn, sql = sql, ...)
+  toc()
 
+  message("Reapplying indexes")
+  tic()
   filename <- outputCreateIndexes(targetDialect = connectionDetails$dbms,
                                     cdmVersion = cdmVersion,
                                     cdmDatabaseSchema = cdmDatabaseSchema,
                                     outputfolder = outputfolder)
-  sql <- paste(sql, readr::read_file(file.path(outputfolder, filename)), sep = "\n")
+  sql <- readr::read_file(file.path(outputfolder, filename))
+  DatabaseConnector::executeSql(conn, sql = sql, ...)
+  toc()
 
-  con <- DatabaseConnector::connect(connectionDetails = connectionDetails)
-
-  DatabaseConnector::executeSql(con, sql = sql, ...)
-
-  DatabaseConnector::disconnect(con)
+  on.exit(DatabaseConnector::disconnect(conn))
 }

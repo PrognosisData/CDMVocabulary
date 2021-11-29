@@ -2,14 +2,23 @@
 % Please edit documentation in R/loadVocabulary.R
 \name{loadVocabTables}
 \alias{loadVocabTables}
-\title{Function from ETL-Synthea project}
+\title{Loads the OMOP CDM vocabulary tables from csv files}
 \usage{
-LoadVocabFromCsv(connectionDetails, cdmSchema, vocabFileLoc, bulkLoad)
+loadVocabTables(
+  connectionDetails,
+  cdmVersion,
+  cdmSchema,
+  vocabFileLoc,
+  bulkLoad = FALSE,
+  chunkSize = 10000
+)
 }
 \arguments{
 \item{connectionDetails}{An R object of type\cr\code{connectionDetails} created using the
 function \code{createConnectionDetails} in the
 \code{DatabaseConnector} package.}
+
+\item{cdmVersion}{The version of the CDM you are creating, e.g. 5.3, 5.4}
 
 \item{cdmSchema}{The name of the database schema that will contain the Vocabulary (and CDM)
 tables.  Requires read and write permissions to this database. On SQL
@@ -18,11 +27,8 @@ so for example 'cdm_instance.dbo'.}
 
 \item{vocabFileLoc}{The location of the vocabulary csv files.}
 
-\item{bulkLoad}{Boolean flag indicating whether or not to use bulk loading (if possible).  Default is FALSE.}
+\item{chuckSize}{Number of records in each chunck of data that is processed.  Default is 10000}
 }
 \description{
-loadVocabTables This function populates all Vocabulary tables with data in csv files.
-}
-\details{
-This function assumes \cr\code{createCDMTables()} has already been run.
+Loads the OMOP CDM vocabulary tables from csv files
 }

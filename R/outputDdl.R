@@ -115,6 +115,13 @@ outputDropIndexes <- function(targetDialect, cdmVersion, outputfolder, cdmDataba
 
   stopifnot(cdmVersion %in% listSupportedVersions())
   sql <- formatDropIndexes(cdmVersion)
+
+  # Remove "on <table>" from sql for postgresql dialect
+  if (targetDialect == "postgresql") {
+    sql <- str_replace_all(sql, " ON [@a-zA-Z0-9._]+;", ";")
+    sql <- str_replace_all(sql, "IF EXISTS ", "IF EXISTS @cdmDatabaseSchema.")
+  }
+
   filename <- paste("OMOPCDM", gsub(" ", "_", targetDialect), cdmVersion, "drop", "indexes.sql", sep = "_")
   outputDdl(sql, filename, targetDialect, cdmVersion, outputfolder, cdmDatabaseSchema)
 
